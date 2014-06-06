@@ -53,7 +53,7 @@ namespace tessegonal2d
 			float _colors [7] [4];    // RGBA values of different elements. Order is octagon1, octagon2, octagon3, octagon4, square1, square2
 			FormatPair formats;
 			int seedcenterx, seedcentery;
-			int which_shape (int x, int y, bool row_a);
+			int which_shape (int x, int y, bool row_a, bool col_1);
 
 			// octagon helper functions
 			bool inside_octagon (int x, int y, int octx, int octy, int octr);
@@ -153,33 +153,47 @@ namespace tessegonal2d
 		p[3] = row.writable(Chan_Alpha);
 
 		// maths
-		if (( (y % (2 * oct_height(_base_radius))) < (root_location[1] + oct_height(_base_radius) / 2) ) ||
-			( (y % (2 * oct_height(_base_radius))) <= (root_location[1] - oct_height(_base_radius) / 2) ) )
+		if ( (y % (2 * oct_height(_base_radius))) > (root_location[1] + oct_height(_base_radius) / 2) )
 			{ // if (y in row a)
 				for (int x = xx; x < r; x++) 
 				{ // for each x in row
 					if ( (x % (2 * oct_height(_base_radius))) < (root_location[0] + oct_height(_base_radius) / 2) )
-					{ // if (x in column 1)
+					{ // if x in column 1
 						// store which shape
-						shape_no = which_shape(x, y, true);
+						shape_no = which_shape(x, y, true, true);
 						// colour pixel appropriately
 						for (int i = 0; i < 4; i++) {
 							p[i][x] = _colors[shape_no][i];
 						}
-					} // end if in column
+					} else { // if x in column 2
+						// store which shape
+						shape_no = which_shape(x, y, true, false);
+						// colour pixel appropriately
+						for (int i = 0; i < 4; i++) {
+							p[i][x] = _colors[shape_no][i];
+						}
+					} // end if x in column 1 or 2
 				} // end for each x
 			} else { // else (row b)
-				// if (x in column 2) {
-					for (int x = xx; x < r; x++) 
-					{ //for each x in row
+				for (int x = xx; x < r; x++) 
+				{ //for each x in row
+					if ( (x % (2 * oct_height(_base_radius))) < (root_location[0] + oct_height(_base_radius) / 2) )
+					{ // if (x in column 2)
 						// store which shape
-						shape_no = which_shape(x, y, false);
+						shape_no = which_shape(x, y, false, true);
 						// colour pixel appropriately
 						for (int i = 0; i < 4; i++) {
 							p[i][x] = _colors[shape_no][i]; 
 						} 
-					} // end for each x
-				// } // end if in column
+					} else { // if x in column 2
+						// store which shape
+						shape_no = which_shape(x, y, false, false);
+						// colour pixel appropriately
+						for (int i = 0; i < 4; i++) {
+							p[i][x] = _colors[shape_no][i];
+						}
+					} // end if x in column 1 or 2
+				} // end for each x
 			} // end if in row
 	}
 
@@ -190,14 +204,87 @@ namespace tessegonal2d
 	static Iop* constructor(Node* node) { return new Tessegonal2D(node); }
 	const Iop::Description Tessegonal2D::desc(CLASS, "Image/Tessegonal2D", constructor);
 
-	int which_shape (int x, int y, bool row_a) {
-		if row_a {
-			return OTH;
-		} else {
-			return OTH;
+
+	/* Identifies which shape a pixel is in by checking where in a simplified pattern it falls.
+	// Pattern shown below.
+	// ________________
+	// |    |____|    |
+	// |__ /      \ __|
+	// |  |        |  |
+	// |__|        |__|
+	// |   \ ____ /   |
+	// |____|____|____|
+	*/
+	int which_shape (int x, int y, bool row_a, bool col_1) {
+		float cell_half_width = oct_height(base_radius);
+		float current_oct_edge_length = oct_edge_length(_transition_state * base_radius);
+		int normalised_x = x % cell_half_width;
+		int normalised_y = y % cell_half_width;
+		int result = OTH;
+		if (inside_octagon (normalised_x, normalised_y, cell_half_width, cell_half_width, _transition_state * base_radius)) {
+			// seed octagon
+			result = SO1;
+		} else if (normalised_x <= cell_half_width - (current_oct_edge_length / 2)) { 
+			// left side
+			if (normalised_y <= cell_half_width - (current_oct_edge_length / 2)) { 			// bottom left octagon
+				result = DO1;
+			} else if (normalised_y >= cell_half_width + (current_oct_edge_length / 2)) { 	// top left octagon
+				result = DO2;
+			} else { 																		// left filler square
+				result = FS1;
+			}
+		} else if (normalised_x > cell_half_width + (current_oct_edge_length / 2)) {
+			// right side
+			if (normalised_y <= cell_half_width - (current_oct_edge_length / 2)) {			// bottom right octagon
+				result = DO2;
+			} else if (normalised_y > cell_half_width + (current_oct_edge_length / 2)) {	// top right octagon
+				result = DO1;
+			} else {																		// right filler square
+				result = FS2;
+			}
+		} else { 
+			// center squares
+			if (normalised_y <= cell_half_width - (current_oct_edge_length / 2)) {			// bottom filler square
+				result = FS2;
+			} else {																		// top filler square
+				result = FS1;
+			}
 		}
+		if ( (row_a && !col_1) || (!row_a && col_1) ) {
+			switch result {
+				case SO1:
+					return SO1;
+					break;
+				case DO1:
+					return DO2;
+					break;
+				case DO2:
+					return DO1;
+					break;
+				case FS1:
+					return FS2;
+					break;
+				case FS2:
+					return FS1;
+					break;
+			}
+		}
+		return result;
 	}
 
+	/* Checks if a given point is within the bounds of an octagon of radius octr centered at octx and octy.
+	// Breaks the octagon into pieces as shown in ASCII diagram below.
+	// ____________ _octt
+	// | /|    |\ |
+	// |/_|____|_\| _octti
+	// |  |    |  |
+	// |__|____|__| _octbi
+	// |\ |    | /|
+	// |_\|____|/_| _octb
+	// |  |    |  |
+	// |  |octli  |octr
+	// |octl   |octri
+	*/
 	bool inside_octagon (int x, int y, int octx, int octy, int octr) {
 		float hocth = oct_height(octr) / 2; // half the height of the octagon
 		float hocte = oct_edge_length(octr) / 2; // half the length each of the octagon's edges
@@ -209,25 +296,6 @@ namespace tessegonal2d
 		float octri = octx - hocte; // right inner x coord
 		float octti = octy + hocte; // top inner x coord
 		float octbi = octy - hocte; // bottom inner x coord
-		/* 
-		// float oct[8][2];
-		// oct[0][0] = octr;
-		// oct[0][1] = octti;
-		// oct[1][0] = octli;
-		// oct[1][1] = octt;
-		// oct[2][0] = octri;
-		// oct[2][1] = octt;
-		// oct[3][0] = octl;
-		// oct[3][1] = octti;
-		// oct[4][0] = octl;
-		// oct[4][1] = octbi;
-		// oct[5][0] = octli;
-		// oct[5][1] = octb;
-		// oct[6][0] = octri;
-		// oct[6][1] = octb;
-		// oct[7][0] = octr;
-		// oct[7][1] = octbi; 
-		*/
 		if (( (x >= octl) && (x <= octr) ) && ( (x >= octb) && (x <= octt) )) { // inside the outer bounds
 			if (x < octli) { // left
 				if (y > octti) {
