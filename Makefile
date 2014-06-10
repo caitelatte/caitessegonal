@@ -4,11 +4,11 @@
 # This is free software; see the source for copying conditions.  There is NO
 # warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 # End Compiler Info Output
-NDKDIR ?= /Applications/Nuke7.0v2/Nuke7.0v2.app/Contents/MacOS
-MYCXX ?= g++-4.0
-LINK ?= g++-4.0
-CXXFLAGS ?= -g -c -DUSE_GLEW -I$(NDKDIR)/include -isysroot /Developer/SDKs/MacOSX10.6.sdk -arch x86_64
-LINKFLAGS ?= -L$(NDKDIR) -Wl,-syslibroot,/Developer/SDKs/MacOSX10.6.sdk -arch x86_64
+NDKDIR ?= /Applications/Nuke7.0v9/Nuke7.0v9.app/Contents/MacOS
+MYCXX ?= g++
+LINK ?= g++
+CXXFLAGS ?= -g -c -DUSE_GLEW -I$(NDKDIR)/include -isysroot ./MacOSX10.6.sdk -arch x86_64
+LINKFLAGS ?= -L$(NDKDIR) -Wl,-syslibroot,./MacOSX10.6.sdk -arch x86_64
 LIBS ?= -lDDImage -lGLEW
 LINKFLAGS += -bundle
 FRAMEWORKS ?= -framework QuartzCore -framework IOKit -framework CoreFoundation -framework Carbon -framework ApplicationServices -framework OpenGL -framework AGL 

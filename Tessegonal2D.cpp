@@ -10,6 +10,7 @@ static const char* const HELP =
 #include "DDImage/Knobs.h"
 #include "DDImage/Knob.h"
 #include "DDImage/DDMath.h"
+#include "DDImage/Format.h"
 
 using namespace DD::Image;
 
@@ -32,7 +33,7 @@ namespace tessegonal2d
 
 	class Tessegonal2D : public Iop {
 		public:
-			Tessegonal2D(Node* node);
+			Tessegonal2D (Node* node);
 
 			virtual const char* Class() const;
 			virtual void knobs(Knob_Callback f);
@@ -45,13 +46,14 @@ namespace tessegonal2d
 			const char* node_help() const;
 
 			static const Description desc;
+			FormatPair formats;
 
 		private:
 			float _base_radius;       // The main octagons' distance from center to any vertex when _transition_state == 0
 			float _transition_state;  // The main octagons' scale compared to original. 0 <= _transition_state <= 1
 			float _root_location [2]; // The original octagon's center point location. Sets the place where the pattern will seed from.
-			float _colors [7] [4];    // RGBA values of different elements. Order is octagon1, octagon2, octagon3, octagon4, square1, square2
-			FormatPair formats;
+			float _colors [7] [4];    // RGBA values of different elements. 
+									  // Order is octagon1, octagon2, octagon3, octagon4, square1, square2
 			int seedcenterx, seedcentery;
 			int which_shape (int x, int y, bool row_a, bool col_1);
 
@@ -70,10 +72,10 @@ namespace tessegonal2d
 	// Implementations
 	//
 
-	Tessegonal2D(Node* node) : Iop(node)
-		_base_radius(30.f);
-		_transition_state(0.f);
+	Tessegonal2D::Tessegonal2D(Node* node) : Iop(node)
 	{
+		_base_radius = 30.f;
+		_transition_state = 0.f;
 		inputs(0);
 
 		_root_location[0] = _root_location[1] = 0.f;
@@ -122,8 +124,8 @@ namespace tessegonal2d
 
 	void knobs(Knob_Callback f)
 	{
-		Format_knob(f, &formats, "format");
-		Float_knob(f, &_base_radius, "base_radius", "Base Radius");
+		Format_knob(f, &Tessegonal2D::formats, "format");
+		Float_knob(f, &Tessegonal2D::_base_radius, "base_radius", "Base Radius");
 		Float_knob(f, &_transition_state, "transition_state", "Transition State");
 		XY_knob(f, _root_location, "root_location", "Root Location");
 		AColor_knob(f, _colors[0], "soct_1_color", "Seed Octagon 1");
@@ -137,10 +139,10 @@ namespace tessegonal2d
 
 	void _validate(bool)
 	{
-		info_.full_size_format(*formats.fullSizeFormat());
-		info_.format(*formats.format());
+		info_.full_size_format(*Tessegonal2D::formats.fullSizeFormat());
+		info_.format(*Tessegonal2D::formats.format());
 		info_.channels(Mask_RGBA);
-		info_.set(format());
+		info_.set(formats.format());
 	}
 
 	void engine(int y, int xx, int r, ChannelMask channels, Row& row)
@@ -216,12 +218,12 @@ namespace tessegonal2d
 	// |____|____|____|
 	*/
 	int which_shape (int x, int y, bool row_a, bool col_1) {
-		float cell_half_width = oct_height(base_radius);
-		float current_oct_edge_length = oct_edge_length(_transition_state * base_radius);
+		float cell_half_width = oct_height(_base_radius);
+		float current_oct_edge_length = oct_edge_length(_transition_state * _base_radius);
 		int normalised_x = x % cell_half_width;
 		int normalised_y = y % cell_half_width;
 		int result = OTH;
-		if (inside_octagon (normalised_x, normalised_y, cell_half_width, cell_half_width, _transition_state * base_radius)) {
+		if (inside_octagon (normalised_x, normalised_y, cell_half_width, cell_half_width, _transition_state * _base_radius)) {
 			// seed octagon
 			result = SO1;
 		} else if (normalised_x <= cell_half_width - (current_oct_edge_length / 2)) { 
